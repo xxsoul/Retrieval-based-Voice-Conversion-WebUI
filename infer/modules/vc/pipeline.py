@@ -1,6 +1,10 @@
 import os
 import sys
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
+
 from functools import lru_cache
 from time import time as ttime
 
@@ -139,8 +143,8 @@ class Pipeline(object):
             if not hasattr(self, "model_rmvpe"):
                 from infer.lib.rmvpe import RMVPE
 
-                print(
-                    "loading rmvpe model,%s" % "%s/rmvpe.pt" % os.environ["rmvpe_root"]
+                logger.info(
+                    "Loading rmvpe model,%s" % "%s/rmvpe.pt" % os.environ["rmvpe_root"]
                 )
                 self.model_rmvpe = RMVPE(
                     "%s/rmvpe.pt" % os.environ["rmvpe_root"],
@@ -152,7 +156,7 @@ class Pipeline(object):
         if "privateuseone" in str(self.device):  # clean ortruntime memory
             del self.model_rmvpe.model
             del self.model_rmvpe
-            print("cleaning ortruntime memory")
+            logger.info("Cleaning ortruntime memory")
 
         f0 *= pow(2, f0_up_key / 12)
         # with open("test.txt","w")as f:f.write("\n".join([str(i)for i in f0.tolist()]))
@@ -262,17 +266,10 @@ class Pipeline(object):
             feats = feats.to(feats0.dtype)
         p_len = torch.tensor([p_len], device=self.device).long()
         with torch.no_grad():
-            if pitch is not None and pitchf is not None:
-                audio1 = (
-                    (net_g.infer(feats, p_len, pitch, pitchf, sid)[0][0, 0])
-                    .data.cpu()
-                    .float()
-                    .numpy()
-                )
-            else:
-                audio1 = (
-                    (net_g.infer(feats, p_len, sid)[0][0, 0]).data.cpu().float().numpy()
-                )
+            hasp = pitch is not None and pitchf is not None
+            arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
+            audio1 = (net_g.infer(*arg)[0][0, 0]).data.cpu().float().numpy()
+            del hasp, arg
         del feats, p_len, padding_mask
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 import librosa
 import numpy as np
@@ -88,7 +91,7 @@ class Predictor:
     def __init__(self, args):
         import onnxruntime as ort
 
-        print(ort.get_available_providers())
+        logger.info(ort.get_available_providers())
         self.args = args
         self.model_ = get_models(
             device=cpu, dim_f=args.dim_f, dim_t=args.dim_t, n_fft=args.n_fft
@@ -101,7 +104,7 @@ class Predictor:
                 "CPUExecutionProvider",
             ],
         )
-        print("onnx load done")
+        logger.info("ONNX load done")
 
     def demix(self, mix):
         samples = mix.shape[-1]

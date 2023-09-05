@@ -1,10 +1,14 @@
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import soundfile as sf
 import torch
+from io import BytesIO
 
-from infer.lib.audio import load_audio
+from infer.lib.audio import load_audio, wav2
 from infer.lib.infer_pack.models import (
     SynthesizerTrnMs256NSFsid,
     SynthesizerTrnMs256NSFsid_nono,
@@ -30,14 +34,7 @@ class VC:
         self.config = config
 
     def get_vc(self, sid, *to_return_protect):
-        person = f'{os.getenv("weight_root")}/{sid}'
-        print(f"loading {person}")
-
-        self.cpt = torch.load(person, map_location="cpu")
-        self.tgt_sr = self.cpt["config"][-1]
-        self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
-        self.if_f0 = self.cpt.get("f0", 1)
-        self.version = self.cpt.get("version", "v1")
+        logger.info("Get sid: " + sid)
 
         to_return_protect0 = {
             "visible": self.if_f0 != 0,
@@ -53,6 +50,65 @@ class VC:
             else 0.33,
             "__type__": "update",
         }
+
+        if not sid:
+            if self.hubert_model is not None:  # 考虑到轮询, 需要加个判断看是否 sid 是由有模型切换到无模型的
+                logger.info("Clean model cache")
+                del (
+                    self.net_g,
+                    self.n_spk,
+                    self.vc,
+                    self.hubert_model,
+                    self.tgt_sr,
+                )  # ,cpt
+                self.hubert_model = (
+                    self.net_g
+                ) = self.n_spk = self.vc = self.hubert_model = self.tgt_sr = None
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                ###楼下不这么折腾清理不干净
+                self.if_f0 = self.cpt.get("f0", 1)
+                self.version = self.cpt.get("version", "v1")
+                if self.version == "v1":
+                    if self.if_f0 == 1:
+                        self.net_g = SynthesizerTrnMs256NSFsid(
+                            *self.cpt["config"], is_half=self.config.is_half
+                        )
+                    else:
+                        self.net_g = SynthesizerTrnMs256NSFsid_nono(*self.cpt["config"])
+                elif self.version == "v2":
+                    if self.if_f0 == 1:
+                        self.net_g = SynthesizerTrnMs768NSFsid(
+                            *self.cpt["config"], is_half=self.config.is_half
+                        )
+                    else:
+                        self.net_g = SynthesizerTrnMs768NSFsid_nono(*self.cpt["config"])
+                del self.net_g, self.cpt
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            return (
+                {"visible": False, "__type__": "update"},
+                {
+                    "visible": True,
+                    "value": to_return_protect0,
+                    "__type__": "update",
+                },
+                {
+                    "visible": True,
+                    "value": to_return_protect1,
+                    "__type__": "update",
+                },
+                "",
+                "",
+            )
+        person = f'{os.getenv("weight_root")}/{sid}'
+        logger.info(f"Loading: {person}")
+
+        self.cpt = torch.load(person, map_location="cpu")
+        self.tgt_sr = self.cpt["config"][-1]
+        self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
+        self.if_f0 = self.cpt.get("f0", 1)
+        self.version = self.cpt.get("version", "v1")
 
         synthesizer_class = {
             ("v1", 1): SynthesizerTrnMs256NSFsid,
@@ -77,6 +133,7 @@ class VC:
         self.pipeline = Pipeline(self.tgt_sr, self.config)
         n_spk = self.cpt["config"][-3]
         index = {"value": get_index_path_from_model(sid), "__type__": "update"}
+        logger.info("Select index: " + index["value"])
 
         return (
             (
@@ -154,17 +211,18 @@ class VC:
             if self.tgt_sr != resample_sr >= 16000:
                 self.tgt_sr = resample_sr
             index_info = (
-                "Using index:%s." % file_index
+                "Index:\n%s." % file_index
                 if os.path.exists(file_index)
                 else "Index not used."
             )
             return (
-                f"Success.\n {index_info}\nTime:\n npy:{times[0]}s, f0:{times[1]}s, infer:{times[2]}s",
+                "Success.\n%s\nTime:\nnpy: %.2fs, f0: %.2fs, infer: %.2fs."
+                % (index_info, *times),
                 (self.tgt_sr, audio_opt),
             )
         except:
             info = traceback.format_exc()
-            print(info)
+            logger.warn(info)
             return info, (None, None)
 
     def vc_multi(
@@ -228,17 +286,17 @@ class VC:
                                 tgt_sr,
                             )
                         else:
-                            path = "%s/%s.wav" % (opt_root, os.path.basename(path))
-                            sf.write(
-                                path,
-                                audio_opt,
-                                tgt_sr,
-                            )
-                            if os.path.exists(path):
-                                os.system(
-                                    "ffmpeg -i %s -vn %s -q:a 2 -y"
-                                    % (path, path[:-4] + ".%s" % format1)
+                            path = "%s/%s.%s" % (opt_root, os.path.basename(path), format1)
+                            with BytesIO() as wavf:
+                                sf.write(
+                                    wavf,
+                                    audio_opt,
+                                    tgt_sr,
+                                    format="wav"
                                 )
+                                wavf.seek(0, 0)
+                                with open(path, "wb") as outf:
+                                    wav2(wavf, outf, format1)
                     except:
                         info += traceback.format_exc()
                 infos.append("%s->%s" % (os.path.basename(path), info))

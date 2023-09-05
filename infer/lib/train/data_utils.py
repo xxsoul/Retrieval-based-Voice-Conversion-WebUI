@@ -1,5 +1,8 @@
 import os
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -110,7 +113,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
             try:
                 spec = torch.load(spec_filename)
             except:
-                print(spec_filename, traceback.format_exc())
+                logger.warn("%s %s", spec_filename, traceback.format_exc())
                 spec = spectrogram_torch(
                     audio_norm,
                     self.filter_length,
@@ -302,7 +305,7 @@ class TextAudioLoader(torch.utils.data.Dataset):
             try:
                 spec = torch.load(spec_filename)
             except:
-                print(spec_filename, traceback.format_exc())
+                logger.warn("%s %s", spec_filename, traceback.format_exc())
                 spec = spectrogram_torch(
                     audio_norm,
                     self.filter_length,

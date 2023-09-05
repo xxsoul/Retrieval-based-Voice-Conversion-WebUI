@@ -7,6 +7,10 @@ import torch.nn.functional as F
 from librosa.util import normalize, pad_center, tiny
 from scipy.signal import get_window
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 ###stft codes from https://github.com/pseeth/torch-stft/blob/master/torch_stft/util.py
 def window_sumsquare(
@@ -597,7 +601,7 @@ class RMVPE:
         with torch.no_grad():
             n_frames = mel.shape[-1]
             mel = F.pad(
-                mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect"
+                mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="constant"
             )
             if "privateuseone" in str(self.device):
                 onnx_input_name = self.model.get_inputs()[0].name
@@ -691,4 +695,4 @@ if __name__ == "__main__":
     # f0 = rmvpe.infer_from_audio(audio, thred=thred)
     # f0 = rmvpe.infer_from_audio(audio, thred=thred)
     t1 = ttime()
-    print(f0.shape, t1 - t0)
+    logger.info("%s %.2f", f0.shape, t1 - t0)

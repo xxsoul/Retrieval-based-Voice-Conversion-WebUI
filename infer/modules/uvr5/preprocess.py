@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 import librosa
 import numpy as np
@@ -116,7 +119,7 @@ class AudioPre:
                 )
             else:
                 wav_instrument = spec_utils.cmb_spectrogram_to_wave(y_spec_m, self.mp)
-            print("%s instruments done" % name)
+            logger.info("%s instruments done" % name)
             if format in ["wav", "flac"]:
                 sf.write(
                     os.path.join(
@@ -150,7 +153,7 @@ class AudioPre:
                 )
             else:
                 wav_vocals = spec_utils.cmb_spectrogram_to_wave(v_spec_m, self.mp)
-            print("%s vocals done" % name)
+            logger.info("%s vocals done" % name)
             if format in ["wav", "flac"]:
                 sf.write(
                     os.path.join(
@@ -283,7 +286,7 @@ class AudioPreDeEcho:
                 )
             else:
                 wav_instrument = spec_utils.cmb_spectrogram_to_wave(y_spec_m, self.mp)
-            print("%s instruments done" % name)
+            logger.info("%s instruments done" % name)
             if format in ["wav", "flac"]:
                 sf.write(
                     os.path.join(
@@ -317,7 +320,7 @@ class AudioPreDeEcho:
                 )
             else:
                 wav_vocals = spec_utils.cmb_spectrogram_to_wave(v_spec_m, self.mp)
-            print("%s vocals done" % name)
+            logger.info("%s vocals done" % name)
             if format in ["wav", "flac"]:
                 sf.write(
                     os.path.join(

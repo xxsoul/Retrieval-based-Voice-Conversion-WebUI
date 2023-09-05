@@ -13,9 +13,10 @@ logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("markdown_it").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 i18n = I18nAuto()
-i18n.print()
+logger.info(i18n)
 
 load_dotenv()
 config = Config()
@@ -23,7 +24,7 @@ vc = VC(config)
 
 weight_root = os.getenv("weight_root")
 weight_uvr5_root = os.getenv("weight_uvr5_root")
-index_root = "logs"
+index_root = os.getenv("index_root")
 names = []
 hubert_model = None
 for name in os.listdir(weight_root):
